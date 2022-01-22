@@ -11,4 +11,7 @@ This folder has server setup.
 This folder has basic extension
 -- inject.js script intercepts the cookie sent by scripts and prints the cosole.trace().
 
+![image](https://user-images.githubusercontent.com/46374292/150656745-969f2d4c-acd1-4bfb-93a5-e3cfb5ab80cc.png)
+
+
 
