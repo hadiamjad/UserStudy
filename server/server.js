@@ -45,6 +45,24 @@ async function insertResponse(newHttpResp){
   })
 }
 
+async function insertInfo(newInfo){ 
+  //const result = await client.db("NetworkCallStack").collection("request").insertOne(newHttpReq);
+  //console.log(`New request created with the following id: ${result.insertedId}`);
+  const file = 'cookie_storage.json';
+  jsonfile.writeFile(file, newInfo, { flag: 'a' }, function (err) {
+    if (err) console.error(err);
+  })
+}
+
+async function insertLogs(newInfo){ 
+  //const result = await client.db("NetworkCallStack").collection("request").insertOne(newHttpReq);
+  //console.log(`New request created with the following id: ${result.insertedId}`);
+  const file = 'logs.json';
+  jsonfile.writeFile(file, newInfo, { flag: 'a' }, function (err) {
+    if (err) console.error(err);
+  })
+}
+
 app.post('/request', (req, res) => {
   //console.log(req.body);
   req.body.top_level_url = website[0];
@@ -60,6 +78,18 @@ app.post('/requestinfo', (req, res) => {
 app.post('/response', (req, res) => {
   //console.log("response");
   insertResponse(req.body);
+  res.send("response-success");
+})
+
+app.post('/cookiestorage', (req, res) => {
+  //console.log("response");
+  insertInfo(req.body);
+  res.send("response-success");
+})
+
+app.post('/logs', (req, res) => {
+  //console.log("response");
+  insertLogs(req.body);
   res.send("response-success");
 })
 
