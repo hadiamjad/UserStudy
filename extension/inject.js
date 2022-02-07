@@ -1,10 +1,10 @@
 var cookieGetter = document.__lookupGetter__("cookie").bind(document);
 var cookieSetter = document.__lookupSetter__("cookie").bind(document);
 
-var storageGetter = window.__lookupSetter__("localStorage");
-var storageSetter = window.__lookupSetter__("localStorage");
+var storageGetter = window.__lookupGetter__("localStorage").bind(window);
+// var storageSetter = window.__lookupSetter__("localStorage").bind(window);
 
-//console.log(window.__lookupSetter__("cookie"));
+//console.log(window.__lookupGetter__("localStorage"));
 Object.defineProperty(document, 'cookie', {
     get: function() {
         var storedCookieStr = cookieGetter();
@@ -51,7 +51,7 @@ Object.defineProperty(document, 'cookie', {
 });
 
 Object.defineProperty(window, 'localStorage', {
-    get: function() {
+  get: function() {
         var storedStr = storageGetter();
         fetch("http://localhost:3000/cookiestorage", {
         method: "POST", 
@@ -65,13 +65,11 @@ Object.defineProperty(window, 'localStorage', {
           "Content-Type": "application/json"
         }
       }).then(res => {
-        console.log("CookieStorage collected");
+        console.log("storage collected");
       });
-        console.log(storedStr);
-        console.trace();
     },
 
-    set: function(storageString) {
+  set: function(storageString) {
         fetch("http://localhost:3000/cookiestorage", {
             method: "POST", 
             body: JSON.stringify({"top_level_url": window.location.href,
@@ -84,9 +82,7 @@ Object.defineProperty(window, 'localStorage', {
               "Content-Type": "application/json"
             }
           }).then(res => {
-            console.log("CookieStorage collected");
+            console.log("storage collected");
           });
-        console.log(storageString);
-        console.trace();
     }
 });
