@@ -62,32 +62,31 @@ function onEvent(debuggeeId, message, params) {
     }); 
 
   }
-  // else if (message == "Network.responseReceived") {
-  //     chrome.debugger.sendCommand({
-  //         tabId: tabId
-  //     }, "Network.getResponseBody", {
-  //         "requestId": params.requestId
-  //     }, function(response) {
-  //             // you get the response body here!
-  //             fetch("http://localhost:3000/response", {
-  //               method: "POST", 
-  //               body: JSON.stringify({
-  //               "request_id":params.requestId,
-  //               "response":params.response,
-  //               "response_body":response,
-  //               "resource_type":params.type}),
-  //               mode: 'cors',
-  //               headers: {
-  //                 'Access-Control-Allow-Origin':'*',
-  //                 "Content-Type": "application/json"
-  //               }
-  //             }).then(res => {
-  //               console.log("Response complete! response");
-  //             });
-  //     });
+  else if (message == "Network.responseReceived") {
+      chrome.debugger.sendCommand({
+          tabId: tabId
+      }, "Network.getResponseBody", {
+          "requestId": params.requestId
+      }, function(response) {
+              // you get the response body here!
+              fetch("http://localhost:3000/response", {
+                method: "POST", 
+                body: JSON.stringify({
+                "request_id":params.requestId,
+                "response":params.response,
+                "resource_type":params.type}),
+                mode: 'cors',
+                headers: {
+                  'Access-Control-Allow-Origin':'*',
+                  "Content-Type": "application/json"
+                }
+              }).then(res => {
+                console.log("Response complete! response");
+              });
+      });
     
 
-  // }
+  }
 }
 
 var version = "1.0";
