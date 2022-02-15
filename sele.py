@@ -2,7 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from webdriver_manager.chrome import ChromeDriverManager
 import time
-from pyvirtualdisplay import Display
+#from pyvirtualdisplay import Display
 import pandas as pd
 import requests
 
@@ -12,16 +12,13 @@ display = Display(visible=0, size=(800, 600))
 display.start()
 
 df = pd.read_csv(r'9.csv')
-#df = pd.DataFrame([['sisaketimmigration.com'], ['home.hipac.cn/shop/login.html']], columns=['website'])
+#df = pd.DataFrame([['sisaketimmigration.com'], ['google.com']], columns=['website'])
 
 dic = {}
+count = 0
 
 for i in df.index:
     try:
-        # dictionary collecting logs
-        # 1: Logs 2: PageSource 
-        dic[df['website'][i]] = []
-
         # extension filepath
         ext_file = 'extension'
 
@@ -38,22 +35,23 @@ for i in df.index:
 
         driver = webdriver.Chrome(ChromeDriverManager().install(), options=opt, desired_capabilities=dc)
         requests.post(url = 'http://localhost:3000/complete', data = {'website': df['website'][i]})
-        driver.get(r'https://'+ df['website'][i])
+        driver.get(r'https://www.'+ df['website'][i])
         #driver.get(r'file:///Users/haadi/Desktop/UserStudy/extension/basic.html')
         
         # sleep
         time.sleep(10)
-        # saving logs in dictionary
+        
+        # dictionary collecting logs
+        # 1: Logs 2: PageSource 
+        dic[df['website'][i]] = []
         # saving logs in dictionary
         dic[df['website'][i]].append(driver.get_log('browser'))
         dic[df['website'][i]].append(driver.page_source)
-
         # driver.quit   
         driver.quit()
-        # saving it in csv
-        pd.DataFrame(dic).to_csv('output.csv')
 
-        with open("logs.txt","w") as log: log.write(str(i)); log.close()
+        count +=1 
+        with open("logs.txt","w") as log: log.write(str(count)); log.close()
         print(r'Completed: '+ str(i)+ ' website: '+ df['website'][i])
     except:
         try:
@@ -61,3 +59,5 @@ for i in df.index:
         except: 
             pass
         print(r'Crashed: '+ str(i) + ' website: '+ df['website'][i])
+# saving it in csv
+pd.DataFrame(dic).to_csv('output.csv')
