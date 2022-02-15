@@ -2,23 +2,26 @@ from selenium import webdriver
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from webdriver_manager.chrome import ChromeDriverManager
 import time
-# from pyvirtualdisplay import Display
+from pyvirtualdisplay import Display
 import pandas as pd
 import requests
-import zlib
 
 
 # virtual display
-# display = Display(visible=0, size=(800, 600))
-# display.start()
+display = Display(visible=0, size=(800, 600))
+display.start()
 
-#df = pd.read_csv(r'9.csv')
-df = pd.DataFrame([['Mama.cn']], columns=['website'])
+df = pd.read_csv(r'9.csv')
+#df = pd.DataFrame([['sisaketimmigration.com'], ['home.hipac.cn/shop/login.html']], columns=['website'])
 
 dic = {}
 
 for i in df.index:
-    #try:
+    try:
+        # dictionary collecting logs
+        # 1: Logs 2: PageSource 
+        dic[df['website'][i]] = []
+
         # extension filepath
         ext_file = 'extension'
 
@@ -35,24 +38,26 @@ for i in df.index:
 
         driver = webdriver.Chrome(ChromeDriverManager().install(), options=opt, desired_capabilities=dc)
         requests.post(url = 'http://localhost:3000/complete', data = {'website': df['website'][i]})
-        driver.get(r'https://www.'+ df['website'][i])
+        driver.get(r'https://'+ df['website'][i])
         #driver.get(r'file:///Users/haadi/Desktop/UserStudy/extension/basic.html')
+        
         # sleep
-        time.sleep(20)
+        time.sleep(10)
         # saving logs in dictionary
-        pagedata = {
-            "top_level_url": df['website'][i],
-            "console_errors":driver.get_log('browser'),
-            "page_source": zlib.compress(bytes(driver.page_source, 'utf-8')),
-            "Blocking_level": None
-        }
-        requests.post("http://localhost:3000/logs", data=pagedata)
-        # a = zlib.compress(a)
-        # zlib.decompress(a.encode())
-            
+        # saving logs in dictionary
+        dic[df['website'][i]].append(driver.get_log('browser'))
+        dic[df['website'][i]].append(driver.page_source)
+
+        # driver.quit   
         driver.quit()
+        # saving it in csv
+        pd.DataFrame(dic).to_csv('output.csv')
 
         with open("logs.txt","w") as log: log.write(str(i)); log.close()
         print(r'Completed: '+ str(i)+ ' website: '+ df['website'][i])
-    #except:
-        #print(r'Crashed: '+ str(i) + ' website: '+ df['website'][i])
+    except:
+        try:
+            driver.quit()
+        except: 
+            pass
+        print(r'Crashed: '+ str(i) + ' website: '+ df['website'][i])
