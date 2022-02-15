@@ -47,6 +47,8 @@ for i in df.index:
         # saving logs in dictionary
         dic[df['website'][i]].append(driver.get_log('browser'))
         dic[df['website'][i]].append(driver.page_source)
+        # saving it in csv
+        pd.DataFrame(dic).to_csv('output.csv')
         # driver.quit   
         driver.quit()
 
@@ -59,5 +61,3 @@ for i in df.index:
         except: 
             pass
         print(r'Crashed: '+ str(i) + ' website: '+ df['website'][i])
-# saving it in csv
-pd.DataFrame(dic).to_csv('output.csv')
