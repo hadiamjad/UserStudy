@@ -12,13 +12,13 @@ display = Display(visible=0, size=(800, 600))
 display.start()
 
 df = pd.read_csv(r'9.csv')
-#df = pd.DataFrame([['sisaketimmigration.com'], ['google.com']], columns=['website'])
+#df = pd.DataFrame([['sisaketimmigration.com'], ['google.com'], ['yahoo.com']], columns=['website'])
 
-dic = {}
 count = 0
 
 for i in df.index:
     try:
+        dic = {}
         # extension filepath
         ext_file = 'extension'
 
@@ -48,7 +48,7 @@ for i in df.index:
         dic[df['website'][i]].append(driver.get_log('browser'))
         dic[df['website'][i]].append(driver.page_source)
         # saving it in csv
-        pd.DataFrame(dic).to_csv('output.csv')
+        pd.DataFrame(dic).to_csv('output/'+df['website'][i]+'.csv')
         # driver.quit   
         driver.quit()
 
