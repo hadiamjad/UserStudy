@@ -57,8 +57,10 @@ async function insertInfo(newInfo){
 
 app.post('/request', (req, res) => {
   //console.log(req.body);
-  req.body.top_level_url = website[0];
-  insertRequest(req.body);
+  if (req.body.http_req != "http://localhost:3000/cookiestorage"){
+    req.body.top_level_url = website[0];
+    insertRequest(req.body);
+  }
   res.send("request-success");
 })
 
