@@ -42,7 +42,7 @@ for i in df.index:
             #driver.get(r'file:///Users/haadi/Desktop/UserStudy/extension/basic.html')
             
             # sleep
-            time.sleep(5)
+            time.sleep(10)
             
             # dictionary collecting logs
             # 1: Logs 2: PageSource 
