@@ -1,10 +1,4 @@
 import matplotlib.pyplot as plt
-
-from sklearn.manifold import TSNE
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegressionCV
-from sklearn.metrics import accuracy_score
-
 import os
 import networkx as nx
 import numpy as np
@@ -21,285 +15,384 @@ print('-----------------Import----------------')
 # node labels
 label = [0]
 
+def addNode(nodes, name, type, TC, FC, classlabel):
+  if name not in nodes.keys():
+    nodes[name] = [label[0], type, 0, 0, classlabel]
+    label[0] += 1
+  if classlabel == 0:
+    nodes[name][2] += TC
+    nodes[name][3] += FC
+  return nodes[name][0]
 
-def dependency_graph(key, json_filepath, unique_nodes, unique_edges, test, train):
-  # syntax: {"script_url": ["unique_identifier", "label", "tracking_count", "non-tracking_count", test, train]}
-  # count +1 for tracking & -1 for non-tracking
-  with open(json_filepath) as file:
-    for line in file:
-      data = json.loads(line)
-      for dataset in data:
-        # handling non-script type
-        if dataset['call_stack']['type'] != 'script': pass
-        else:
-          # recursively add uniques nodes in the graph
-          # if its tracking http call then update the tracking count of all scripts in that stack
-          if dataset['easylistflag'] == 1 or dataset['easyprivacylistflag'] == 1 or dataset['ancestorflag'] == 1:
-            rec_stack_nodes_adder(dataset['call_stack']['stack'], unique_nodes, label, 1, key, test, train)
-            # recursively add tracking edges in the graph
-            rec_plot_edges(dataset['call_stack']['stack'], unique_nodes, unique_edges, 1, None, key)
-          # if its non-tracking http call then update the non-tracking count of all scripts in that stack
-          else:
-            rec_stack_nodes_adder(dataset['call_stack']['stack'], unique_nodes, label, 0, key, test, train)
-            # recursively add non tracking edges in the graph
-            rec_plot_edges(dataset['call_stack']['stack'], unique_nodes, unique_edges, 0, None, key)
-  
-    return unique_nodes, unique_edges
-
-# Description: it creates edges in the plot recursively
-# input: stack = stack object as shown in the image above
-# input: unique_nodes = unique nodes in the given website trace
-# input: unique_edges = unique edges in the given website trace
-# input: trackingflag = tracking request or non-tracking request
-# input: prev = It is set when we are jumping from base to parent and initially not set
-# return: nothing
-def rec_plot_edges(stack, unique_nodes, unique_edges, trackingflag, prev, key):
-  for i in range(len(stack['callFrames'])-1):
-    if prev is not None:
-         if key == 'script':
-            prevKey1 = unique_nodes[stack['callFrames'][i]['url']][0]
-            prevKey2 = prev
-         else:
-           prevKey1 = unique_nodes[stack['callFrames'][i]['url']+"@"+stack['callFrames'][i]['functionName']][0] 
-           prevKey2 = prev
-         
-         # if edge is not already created only then create that edge (prev-condition)
-         if prevKey1 +"@"+ prevKey2 not in unique_edges.keys():
-                unique_edges[prevKey1 +"@"+ prevKey2] = [prevKey1, prevKey2, 0, 0]
-         if trackingflag == 1:
-                unique_edges[prevKey1 +"@"+ prevKey2][2] += 1
-         else:
-                unique_edges[prevKey1 +"@"+ prevKey2][3] += 1
-    
-    if key == 'script':
-            basicKey1 = unique_nodes[stack['callFrames'][i+1]['url']][0] 
-            basicKey2 = unique_nodes[stack['callFrames'][i]['url']][0]
-    else:
-            basicKey1 = unique_nodes[stack['callFrames'][i+1]['url']+"@"+stack['callFrames'][i+1]['functionName']][0] 
-            basicKey2 = unique_nodes[stack['callFrames'][i]['url']+"@"+stack['callFrames'][i]['functionName']][0]
-    
-    # if edge is not already created then create and assign tracking and non-tracking count
-    if basicKey1 +"@"+ basicKey2 not in unique_edges.keys():
-                  unique_edges[basicKey1 +"@"+ basicKey2] = [basicKey1, basicKey2, 0, 0]
-             
-    # if edge is already created then update tracking and non-tracking count
-    if trackingflag == 1:
-            unique_edges[basicKey1 +"@"+ basicKey2][2] += 1
-    else:
-            unique_edges[basicKey1 +"@"+ basicKey2][3] += 1
-
-  # if parent object doen't exist return (base-case)
-  if 'parent' not in stack.keys(): return
-  # in case where base is empty but parent exists
-  elif len(stack['callFrames']) == 0: rec_plot_edges(stack['parent'], unique_nodes, unique_edges, trackingflag, None, key)
-  # else send recursive call for parent and set the prev
-  else: 
-    if key == 'script':
-      rec_plot_edges(stack['parent'],
-                          unique_nodes, unique_edges, trackingflag, unique_nodes[stack['callFrames'][len(stack['callFrames'])-1]['url']][0], key)
-    else:
-      rec_plot_edges(stack['parent'],
-                          unique_nodes, unique_edges, trackingflag, unique_nodes[stack['callFrames'][len(stack['callFrames'])-1]['url']+"@"+stack['callFrames'][len(stack['callFrames'])-1]['functionName']][0], key)
+def addEdge(edges, src, tar):
+  if str(src)+'@'+str(tar) not in edges.keys():
+    edges[str(src)+'@'+str(tar)] = [src, tar]
 
 
-# Description: it appends the unique node url+functionname+linenumber+columnnumber recursively
-# input: stack = stack object as shown in the image above
-# input: unique_nodes = unique nodes in the given stack
-# input: label = its the label for the uique node
-# input: plot = dot plot object
-# return: nothing
-def rec_stack_nodes_adder(stack, unique_nodes, label, trackingflag, key, test, train):
-  # append unique script_url's
-  for item in stack['callFrames']:
-    if key == 'script':
-       basicKey = item['url']
-    else:
-       basicKey = item['url']+"@"+item['functionName']
-    if basicKey not in unique_nodes.keys():
-      unique_nodes[basicKey] = [str(label[0]), 0, 0, test, train]
-      # plot.node( str(label[0]), item['url'])
-      label[0] += 1
-    # if its tracking call then +1 the tracking count for that node
-    if trackingflag == 1:
-      unique_nodes[basicKey][1] += 1
-    # else if its non-tracking call then +1 the non-tracking count for that node
-    else:
-      unique_nodes[basicKey][2] += 1
-    
-    # setting test and train
-    if unique_nodes[basicKey][3] != 1:
-      unique_nodes[basicKey][3] = test
-    if unique_nodes[basicKey][4] != 1:
-      unique_nodes[basicKey][4] = train
-  
-  # if parent object doen't exist return (base-case)
-  if 'parent' not in stack.keys(): return
-  # else send a recursive call for this
-  else: rec_stack_nodes_adder(stack['parent'], unique_nodes, label, trackingflag, key,  test, train)
+# storage_dic = {'_gid' = [002, 5288992, 1], '_svd' = [5]}
+# script_dic = {'https://ad/test.js': [set->[_gid,..], get->[_svd, ..]]}
+def addStorage(script_dic, storage_dic, dataset):  
+  """
+  {"top_level_url":"https://cmovies.online/","function":"cookie_setter","cookie:":"__PPU_BACKCLCK_3714332=true; expires=Wed, 16 Feb 2022 19:06:24 GMT; path=/; domain=cmovies.online","stack":"Error\n    at HTMLDocument.set (chrome-extension://pibhebgeoaejhpkdfhfgpmhjnfjefafc/inject.js:39:17)\n    at e.<computed>.<computed> [as saveSessionCustomKey] (https://lurgaimt.net/tag.min.js:1:43145)\n    at https://lurgaimt.net/tag.min.js:1:47814\n    at _ (https://lurgaimt.net/tag.min.js:1:8934)\n    at https://lurgaimt.net/tag.min.js:1:47689\n    at ln (https://lurgaimt.net/tag.min.js:1:48253)\n    at HTMLScriptElement.g (https://cmovies.online/:1630:60191)"}
+  """
+  """
+  {"top_level_url":"https://eus.rubiconproject.com/usync.html?p=btwnex&endpoint=eu","function":"cookie_getter","cookie:":"khaos=KZPV8CZP-15-K5E0; audit=1|GRYZojcvauLxCRmi07Abd33bvG56iVGUHpZdkt6wQBl5wrSQggMQUFeGcsFVzcEJPOh1wtc3tgnqFTrNE4+z9kqVaHlG5SlgpmvllXEtYN4=","stack":"Error\n    at HTMLDocument.get (chrome-extension://pibhebgeoaejhpkdfhfgpmhjnfjefafc/inject.js:19:17)\n    at readCookie (https://eus.rubiconproject.com/usync.js:4:1684)\n    at runSyncs (https://eus.rubiconproject.com/usync.js:4:10507)\n    at Image.d.onload (https://eus.rubiconproject.com/usync.js:4:9415)"}
+  """
+  """
+  {"top_level_url":"https://cmovies.online/","function":"indexdb_getter","storage:":{"_iiq_sync":"1645034787118","000000160024004d004e003t004a004c0040003t002m002m002o002k002m0024":"002a006u004d006m006n0064006n006o006m004d0051004s004n004d00690068006n0066006b006800670058006n004d0051004r004n004d006l0068006m006j006i006h006m0068004d0051006h006o006f006f004n004d006j006l0068006p006c006i006o006m005q006n0064006n0068004d0051006u004d006m006n0064006n006o006m004d0051004r004n004d00690068006n0066006b006800670058006n004d0051003f004r004n004d006l0068006m006j006i006h006m0068004d0051006h006o006f006f004n004d006j006l0068006p006c006i006o006m005q006n0064006n0068004d0051006h006o006f006f006w006w","000000160024002m002m002o002k002m0024":"0016009b006u008w008z008l008o008p008o007p0094006u007i0079007e007c007d0078007b007c007f007g007e007g007a007b0074006u0095008y008w008z008l008o008p008o007p0094006u007i007500790074005w006u008t008x00900092008p00930093008t008z008y0093006u007i008f008h009d","_iiq_fdata":"{\"pcid\":\"8d8307a6-33ff-4c30-b2c1-3bf70366cf33\",\"pcidDate\":1645034787112}","mgMuidn":"m1gqWoDFcW6a","bf001a61-ea58-4c69-33b4-1b01154b26f5":"6758687d7c1f9247508625","_iiq_fdata_1548712036":"{\"callCount\":1,\"failCount\":0,\"noDataCounter\":1,\"cttl\":43200000}","_mgIntentiq":"{\"time\":1645034787118,\"data\":\"e30=\"}","_mgPvid":"17f03b6cd7394629387"},"stack":"Error\n    at get (chrome-extension://pibhebgeoaejhpkdfhfgpmhjnfjefafc/inject.js:61:17)\n    at https://dozubatan.com/400/4414273:1:48414\n    at https://dozubatan.com/400/4414273:1:48824"}
+  """
+  if dataset["function"] == 'cookie_setter':
+      if dataset["cookie:"] != "":
+        
+        if dataset["cookie:"].split("=")[0] not in storage_dic.keys():
+          storage_dic[dataset["cookie:"].split("=")[0]] = []
+        if dataset["cookie:"].split(";")[0].split('=')[1] not in storage_dic[dataset["cookie:"].split("=")[0]]:
+          storage_dic[dataset["cookie:"].split("=")[0]].append(dataset["cookie:"].split(";")[0].split('=')[1])
+        
+        script_url = getStorageScriptFromStack(dataset["stack"])
+        if script_url not in script_dic.keys():
+           script_dic[script_url] = [[],[]]
+        if dataset["cookie:"].split("=")[0] not in script_dic[script_url][0]:
+          script_dic[script_url][0].append(dataset["cookie:"].split("=")[0])
+ 
+  elif dataset["function"] == 'cookie_getter':
+      if dataset["cookie:"] != "":
+        
+        script_url = getStorageScriptFromStack(dataset["stack"])
+        lst = dataset["cookie:"].split(';')
+        for item in lst:
+          if item.split('=')[0] not in storage_dic.keys():
+            storage_dic[item.split('=')[0]] = []
+          if item.split('=')[1] not in storage_dic[item.split('=')[0]]:
+            storage_dic[item.split('=')[0]].append(item.split('=')[1])
+        
+          if script_url not in script_dic.keys():
+            script_dic[script_url] = [[],[]]
+          if item.split('=')[0] not in script_dic[script_url][1]:
+            script_dic[script_url][1].append(item.split('=')[0])
 
-
-# print("\n---------TRAIN.JSON--------------")
-# unique_nodes,unique_edges = dependency_graph("script", "/content/TwoLabelledRequestForTesting.json", unique_nodes, unique_edges, 1, 0)
-# print("\n---------TEST.JSON--------------")
+  else:
+      if dataset["storage:"] != "":
+        
+        script_url = getStorageScriptFromStack(dataset["stack"])
+        for key in dataset["storage:"]:
+          if key not in storage_dic.keys():
+            storage_dic[key] = []
+          if dataset["storage:"][key] not in storage_dic[key]:
+            storage_dic[key].append(dataset["storage:"][key]) 
+          
+          if script_url not in script_dic.keys():
+            script_dic[script_url] = [[],[]]
+          if key not in script_dic[script_url][1]:
+            script_dic[script_url][1].append(key)
 
 # script sample -> at l (https://c.amazon-adsystem.com/aax2/apstag.js:2:1929)
-def getScriptFromStack(script):
+# return https://c.amazon-adsystem.com/aax2/apstag.js
+def getStorageScriptFromStack(script):
+    script = script.split('\n')[2]
     try:
         script = script.split('(')[1] # https://c.amazon-adsystem.com/aax2/apstag.js:2:1929)
     except:
         pass
     return "https:"+ script.split(':')[1]
 
-## cookie_storage nodes and edges should be added
-## edges:
-## cookie-script get ->/set <-
-## 
-def Cookie_Storage(json_filepath, unique_nodes, unique_edges):
-    with open(json_filepath) as file:
-        for line in file:
-            dataset = json.loads(line)
-            # creating cookie edges and nodes
-            if "cookie:" in dataset.keys()  and dataset["cookie:"] != "":
-                try:
-                    if dataset["cookie:"].split("=")[0] not in unique_nodes.keys():
-                        unique_nodes[dataset["cookie:"].split("=")[0]] = [str(label[0]), -1, -1, 0, 0]
-                        label[0] +=1
-                    # this case should never occur becasue script should be present before
-                    # if getScriptFromStack(dataset["stack"].split("\n")[2]) not in unique_nodes.keys():
-                    #    unique_nodes[getScriptFromStack(dataset["stack"].split("\n")[2])] = [str(label[0]), 0, 0 , 0, 0]    
-                    #    label[0] +=1
-                    # cookie node label
-                    key1 = unique_nodes[dataset["cookie:"].split("=")[0]][0]
-                    # script node label
-                    key2 = unique_nodes[getScriptFromStack(dataset["stack"].split("\n")[2])][0]
-                    # cookie-script get ->/set <-
-                    if dataset["function"] == "cookie_getter":
-                        if key1 + "@" + key2 not in unique_edges.keys():
-                            unique_edges[key1 +"@"+ key2] = [key1, key2]
-                    else:
-                        if key2 + "@" + key1 not in unique_edges.keys():
-                            unique_edges[key2 +"@"+ key1] = [key2, key1]
-                except:
-                    pass
-            # creating storage cookies and edges
-            elif "storage:" in dataset.keys() and dataset["storage:"] != "":
-                try:
-                    # script node label
-                    key2 = unique_nodes[getScriptFromStack(dataset["stack"].split("\n")[2])][0]
-                    for key in dataset["storage:"]:
-                        if key not in unique_nodes.keys():
-                            unique_nodes[key] = [str(label[0]), -2, -2, 0, 0]
-                            label[0] +=1 
-                            # storage node label
-                            key1 = unique_nodes[key][0]
-                            if key1 + "@" + key2 not in unique_edges.keys():
-                                unique_edges[key1 +"@"+ key2] = [key1, key2]
-                except:
-                    pass
-
-######################
-
-
-def getDF_srctar(dic, df):
-  i = 0
-  for key in dic:
-    df.loc[i] = [dic[key][0], dic[key][1]]
-    i +=1
-  return df
-
-# test_tuple = []
-# train_tuple = []
-# label = [0(mixed), 1(tracking), 2(non-tracking), -2(cookie), -1(storage)]
-def getDF_Nodes(dic, df):
-  i = 0
-  for key in dic:
-    str = key.split('@', 1)
-    if dic[key][1] == -1:
-        label = -1
-    elif dic[key][1] == -2:
-        label = -2 
-    elif dic[key][1] == 0:
-      label = 2
-    elif dic[key][2] == 0:
-      label = 1
+# getting initiator of the request. Sample object attached below:
+"""
+"stack": {
+    "callFrames": [],
+    "parent": {
+        "callFrames": [{
+            "columnNumber": 8972,
+            "functionName": "IntentIqObject.appendImage",
+            "lineNumber": 0,
+            "scriptId": "135",
+            "url": "https://cdn.adskeeper.com/js/IIQUniversalID.js"
+        }, {
+            "columnNumber": 9797,
+            "functionName": "IntentIqObject.pixelSync",
+            "lineNumber": 0,
+            "scriptId": "135",
+            "url": "https://cdn.adskeeper.com/js/IIQUniversalID.js"
+        }, {
+            "columnNumber": 13627,
+            "functionName": "IntentIqObject",
+            "lineNumber": 0,
+            "scriptId": "135",
+            "url": "https://cdn.adskeeper.com/js/IIQUniversalID.js"
+        }, {
+            "columnNumber": 66101,
+            "functionName": "_getDataFromApi",
+            "lineNumber": 0,
+            "scriptId": "71",
+            "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+        }, {
+            "columnNumber": 65592,
+            "functionName": "t.onload",
+            "lineNumber": 0,
+            "scriptId": "71",
+            "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+        }],
+        "description": "Image",
+        "parent": {
+            "callFrames": [{
+                "columnNumber": 65556,
+                "functionName": "_init",
+                "lineNumber": 0,
+                "scriptId": "71",
+                "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+            }, {
+                "columnNumber": 1510,
+                "functionName": "_addHookPromiseBody",
+                "lineNumber": 0,
+                "scriptId": "71",
+                "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+            }, {
+                "columnNumber": 1194,
+                "functionName": "",
+                "lineNumber": 0,
+                "scriptId": "71",
+                "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+            }],
+            "description": "load",
+            "parent": {
+                "callFrames": [{
+                    "columnNumber": 1173,
+                    "functionName": "",
+                    "lineNumber": 0,
+                    "scriptId": "71",
+                    "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+                }, {
+                    "columnNumber": 1078,
+                    "functionName": "",
+                    "lineNumber": 0,
+                    "scriptId": "71",
+                    "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+                }, {
+                    "columnNumber": 70097,
+                    "functionName": "processHooks",
+                    "lineNumber": 0,
+                    "scriptId": "71",
+                    "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+                }],
+                "description": "setTimeout",
+                "parent": {
+                    "callFrames": [{
+                        "columnNumber": 67564,
+                        "functionName": "render",
+                        "lineNumber": 0,
+                        "scriptId": "71",
+                        "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+                    }],
+                    "description": "await",
+                    "parent": {
+                        "callFrames": [{
+                            "columnNumber": 101965,
+                            "functionName": "_loadAds",
+                            "lineNumber": 0,
+                            "scriptId": "71",
+                            "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+                        }, {
+                            "columnNumber": 100746,
+                            "functionName": "a.id.app.context.<computed>",
+                            "lineNumber": 0,
+                            "scriptId": "71",
+                            "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+                        }, {
+                            "columnNumber": 103032,
+                            "functionName": "",
+                            "lineNumber": 0,
+                            "scriptId": "71",
+                            "url": "https://jsc.adskeeper.com/b/i/bidgear.cmovies.online.1248860.es6.js"
+                        }, {
+                            "columnNumber": 0,
+                            "functionName": "",
+                            "lineNumber": 4,
+                            "scriptId": "127",
+                            "url": "https://servicer.adskeeper.com/1248860/1?pv=5&cbuster=1645034786243595018584&uniqId=011ad&niet=4g&nisd=false&jsv=es6&w=300&h=250&cols=1&ref=&cxurl=https%3A%2F%2Fcmovies.online%2F&lu=https%3A%2F%2Fcmovies.online%2F&sessionId=620d3d22-08133&pageView=1&pvid=17f03b6cd7698cc3ec3&implVersion=11&dpr=2"
+                        }],
+                        "description": "await"
+                    }
+                }
+            }
+        }
+    }
+}, "type": "script"
+}
+}
+"""
+def getInitiator(stack):
+    if len(stack['callFrames']) != 0:
+      return stack['callFrames'][0]['url']
     else:
-      label = 0
-    df.loc[i] = [dic[key][0], label, str[0], dic[key][3], dic[key][4]]
-    # if dic[key][3] == 1:
-    #   test_tuple.append((dic[key][0], label))
-    # if dic[key][4] == 1:
-    #   train_tuple.append((dic[key][0], label))
-    i +=1
-  return df
+      return getInitiator(stack["parent"])
 
+# getting the redirection link. Sample object attached below:
+"""
+{
+    "request_id": "23715.82",
+    "response": {
+        "connectionId": 1526,
+        "connectionReused": false,
+        "encodedDataLength": 303,
+        "fromDiskCache": false,
+        "fromPrefetchCache": false,
+        "fromServiceWorker": false,
+        "headers": {
+            "access-control-allow-credentials": "true",
+            "access-control-allow-methods": "GET",
+            "access-control-allow-origin": "null",
+            "cache-control": "no-cache, no-store, must-revalidate",
+            "content-encoding": "gzip",
+            "content-type": "application/json; charset=utf-8",
+            "date": "Wed, 16 Feb 2022 17:10:36 GMT",
+            "expires": "0",
+            "pragma": "no-cache",
+            "server-processing-duration-in-ticks": "6863",
+            "strict-transport-security": "max-age=31536000; preload;",
+            "vary": "Accept-Encoding"
+        },
+        "mimeType": "application/json",
+        "protocol": "h2",
+        "remoteIPAddress": "74.119.119.139",
+        "remotePort": 443,
+        "responseTime": 1645031437432.098,
+        "securityState": "unknown",
+        "status": 200,
+        "statusText": "",
+        "timing": {
+            "connectEnd": 57.628,
+            "connectStart": 3.953,
+            "dnsEnd": 3.953,
+            "dnsStart": 3.939,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 106.129,
+            "requestTime": 174911.812454,
+            "sendEnd": 75.873,
+            "sendStart": 70.75,
+            "sslEnd": 57.604,
+            "sslStart": 32.748,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+        },
+        "url": "https://mug.criteo.com/sid?cpp=dWo4V3xmeDFpWnBMSUZJRGhnQmlSRDdhZlVjcTY0SDQvZzlieWhBaDJYdjJVTWhYSXdxSUhYY0VSeCtwZTZYTldCOGNNYW5tSXhCZWlYWUlJMzZraFNNTFpnZVF5Nk9EZlhnK1BRcGp1bnY1NU9YbXdqR3VmWFN5YXJPa3p2TlB0cnZnN3I0S0NsMitYaHo1MWEwLzZ3TVM2OFBiNC9RWFNaNkNpaXd3Zy91VmRCODAwRHZIZDYza0t3dForYnRzVk5JT2paK2tpYWpmYm1OOXd3V0VMb1c2U2YwcE0wUVBpZVJNOGtYWkNXaVAxVTBJPXw&cppv=2"
+    },
+    "resource_type": "XHR"
+}
 
+"""
+def getRedirection(request_id, request_url):
+  with open(r'server/responses.json') as file:
+      for line in file:
+        dataset = json.loads(line)
+        if dataset['request_id'] == request_id:
+          if dataset["response"]["url"] != request_url:
+            return dataset["response"]["url"] 
+          else:
+            return None
 
-def main():
-    # unique node and edges
-    # unique_nodes => script:[id, tracking, non-tracking, test, train] for cookie -1, -1 for storage -2, -2
-    # unique_edges => script_id@script_id: [script_id, script_id] or cookies_id, storage_id
-    unique_nodes = {}
-    unique_edges = {}
+# Function checks if storage key-value is shared in url or not
+def IsInfoShared(storage_dic, url):
+  for key in storage_dic:
+    for item in storage_dic[key]:
+      if item in url:
+        return key
+  
+  return None
 
-    unique_nodes, unique_edges = dependency_graph("script", "labellings.json", unique_nodes, unique_edges, 0, 0)
-
-    Cookie_Storage("server/cookie_storage.json", unique_nodes, unique_edges)
-    # print (unique_nodes)
+def createWebGraph(url):
     
-    df = pd.DataFrame(columns=['source', 'target'])
-    df2 = pd.DataFrame(columns=['node', 'label', 'script_url', 'test', 'train'])
+    # name: [id, type, label, ]
+    nodes = {}
+    # src@tar = [src_id, tar_id]
+    edges = {}
+    # script_dic = {'https://ad/test.js': [set->[_gid,..], get->[_svd, ..]]}
+    script_dic = {} 
+    # storage_dic = {'_gid' = [002, 5288992, 1], '_svd' = [5]}
+    storage_dic = {}
+
+    # creating storage nodes and edges
+    with open(r'server/cookie_storage.json') as file:
+      for line in file:
+        dataset = json.loads(line)
+        if dataset["top_level_url"] == url:
+          addStorage(script_dic, storage_dic, dataset) 
+    for key in storage_dic:
+      addNode(nodes, "Storage@"+key, "Storage", 0 , 0, -3)
     
-    df = getDF_srctar(unique_edges, df)
-    df2 = getDF_Nodes(unique_nodes, df2)
-    print("\n---------DF,DF2--------------")
-
-    plot = Digraph(comment='The Round Table')
-
-    nodes = []
-    # label = [0(mixed)->yellow, 1(tracking)->red, 2(non-tracking)->green, -2(storage)->blue, -1(cookie)->orange]
-    for i in df2.index:
-        # nodes.append((int(df2['node'][i])))
-        # if df2['label'][i] == -2:
-        #     plot.node((int(df2['node'][i]), {"color": "blue"}))
-        # elif df2['label'][i] == -1:
-        #     nodes.append((int(df2['node'][i]), {"color": "orange"}))
-        # elif df2['label'][i] == 2:
-        #     nodes.append((int(df2['node'][i]), {"color": "green"}))
-        # elif df2['label'][i] == 1:
-        #     nodes.append((int(df2['node'][i]), {"color": "red"}))
-        # elif df2['label'][i] == 0:
-        #     nodes.append((int(df2['node'][i]), {"color": "yellow"}))
-        if df2['label'][i] == -2:
-            plot.node(df2['node'][i], df2['node'][i], color='blue', style='filled')
-        elif df2['label'][i] == -1:
-            plot.node(df2['node'][i], df2['node'][i], color='orange', style='filled')
-        elif df2['label'][i] == 2:
-            plot.node(df2['node'][i], df2['node'][i], color='green', style='filled')
-        elif df2['label'][i] == 1:
-            plot.node(df2['node'][i], df2['node'][i], color='red', style='filled')
-        elif df2['label'][i] == 0:
-            plot.node(df2['node'][i], df2['node'][i], color='yellow', style='filled')
-
+    # reading big request data line by line
+    with open(r'labellings.json') as file:
+      for line in file:
+        data = json.loads(line)
+        for dataset in data:
+          ######### Single request level graph plotting #########
+          # check to ensure graph is for one page
+          if dataset['top_level_url'] == url:
+            # create network node
+            src = addNode(nodes, "Network@"+dataset["http_req"], "Network", 0 , 0, -1)
             
-    print("\n---------NODES--------------")
+            # check if request is redirected
+            url = getRedirection(dataset["request_id"], dataset["http_req"])
+            if url is not None:
+              tar = addNode(nodes, "Network@"+url, "Network", 0 , 0, -1)
+              addEdge(edges, src, tar)
+            
+            # check if resource type is not script then create simple HTML node
+            if dataset["resource_type"] != "Script":
+              tar = addNode(nodes, "HTML@"+dataset["http_req"], "HTML@"+dataset["resource_type"], 0, 0, -2)
+            # create script node
+            else:
+              tar = addNode(nodes, "Script@"+dataset["http_req"], dataset["resource_type"], 0, 0, 0)
+            # create edge between the Request -> HTML/Script
+            addEdge(edges, src, tar)
+            
+            # if its initiated by call stack javascript
+            if dataset['call_stack']['type'] == 'script':
+              if dataset['easylistflag'] == 1 or dataset['easyprivacylistflag'] == 1 or dataset['ancestorflag'] == 1:
+                tar = addNode(nodes, "Script@"+getInitiator(dataset['call_stack']['stack']), "Script", 1, 0, 0)
+              else:
+                tar = addNode(nodes, "Script@"+getInitiator(dataset['call_stack']['stack']), "Script", 0, 1, 0)
+              addEdge(edges, tar, src)
+            
+            # Links between storage nodes and script [setter, getter]
+            if dataset["http_req"] in script_dic.keys():
+              # script -> setter 
+              if len(script_dic[dataset["http_req"]][0]) != 0:
+                 for item in script_dic[dataset["http_req"]][0]:
+                   addEdge(edges, src, nodes[item][0])
+              # getter -> script
+              if len(script_dic[dataset["http_req"]][1]) != 0:
+                 for item in script_dic[dataset["http_req"]][1]:
+                   addEdge(edges, nodes[item][0], src)
 
-    edges = []
-    for i in df.index:
-    # if (int(df['source'][i]), int(df['target'][i])) not in edges and (int(df['target'][i]), int(df['source'][i])) not in edges:
-        edges.append((int(df['source'][i]), int(df['target'][i])))
-        plot.edge(df['source'][i], df['target'][i])
-    print("\n---------EDGES--------------")
+            # if url has storage info 
+            val = IsInfoShared(storage_dic, dataset["http_req"])
+            if val is not None:
+              addEdge(edges, nodes[val][0], src)
+    
+    print(nodes)
+    print(edges)
+          
 
-    # rendering the plot
-    plot.render('test-output/test.json.gv', view=True)
 
-    # G = nx.DiGraph()
-    # G.add_nodes_from(nodes)
-    # G.add_edges_from(edges)
-    # fig, ax = plt.subplots(figsize=(15,8))
-    # pos1 = nx.spring_layout(G)
-    # nx.draw(G, pos = pos1,  with_labels=True, node_size=300)
-    # print(nodes)
-    # plt.savefig("graph.pdf")
+def main2():
+  # createWebGraph('TwoLabelledRequestForTesting.json', 'express.co.uk')
+  # string = {'stack': {'callFrames': [], 'parent': {'callFrames': [{'columnNumber': 181, 'functionName': 'fireTag$$module$dist$src$container$fireTags', 'lineNumber': 96, 'scriptId': '129', 'url': 'https://ap.lijit.com/sync'}, {'columnNumber': 241, 'functionName': 'fireTags$$module$dist$src$container$fireTags', 'lineNumber': 99, 'scriptId': '129', 'url': 'https://ap.lijit.com/sync'}, {'columnNumber': 210, 'functionName': 'dataCallback$$module$dist$src$container$getDataFromServer', 'lineNumber': 102, 'scriptId': '129', 'url': 'https://ap.lijit.com/sync'}, {'columnNumber': 9, 'functionName': '', 'lineNumber': 0, 'scriptId': '154', 'url': 'https://ap.lijit.com/containertag?containerId=18&zoneId=598981&v=2'}], 'description': 'Image'}}, 'type': 'script'}
 
-main()
+  print(getInitiator(string['stack']))
+  # script_dic = {}
+  # storage_dic = {}
+  # dataset1 = {"top_level_url":"https://cmovies.online/","function":"cookie_setter","cookie:":"__PPU_BACKCLCK_3714332=true; expires=Wed, 16 Feb 2022 19:06:24 GMT; path=/; domain=cmovies.online","stack":"Error\n    at HTMLDocument.set (chrome-extension://pibhebgeoaejhpkdfhfgpmhjnfjefafc/inject.js:39:17)\n    at e.<computed>.<computed> [as saveSessionCustomKey] (https://lurgaimt.net/tag.min.js:1:43145)\n    at https://lurgaimt.net/tag.min.js:1:47814\n    at _ (https://lurgaimt.net/tag.min.js:1:8934)\n    at https://lurgaimt.net/tag.min.js:1:47689\n    at ln (https://lurgaimt.net/tag.min.js:1:48253)\n    at HTMLScriptElement.g (https://cmovies.online/:1630:60191)"}
+  # dataset2 = {"top_level_url":"https://eus.rubiconproject.com/usync.html?p=btwnex&endpoint=eu","function":"cookie_getter","cookie:":"khaos=KZPV8CZP-15-K5E0; audit=1|GRYZojcvauLxCRmi07Abd33bvG56iVGUHpZdkt6wQBl5wrSQggMQUFeGcsFVzcEJPOh1wtc3tgnqFTrNE4+z9kqVaHlG5SlgpmvllXEtYN4=","stack":"Error\n    at HTMLDocument.get (chrome-extension://pibhebgeoaejhpkdfhfgpmhjnfjefafc/inject.js:19:17)\n    at readCookie (https://eus.rubiconproject.com/usync.js:4:1684)\n    at runSyncs (https://eus.rubiconproject.com/usync.js:4:10507)\n    at Image.d.onload (https://eus.rubiconproject.com/usync.js:4:9415)"}
+  # dataset3 = {"top_level_url":"https://cmovies.online/","function":"indexdb_getter","storage:":{"_iiq_sync":"1645034787118","000000160024004d004e003t004a004c0040003t002m002m002o002k002m0024":"002a006u004d006m006n0064006n006o006m004d0051004s004n004d00690068006n0066006b006800670058006n004d0051004r004n004d006l0068006m006j006i006h006m0068004d0051006h006o006f006f004n004d006j006l0068006p006c006i006o006m005q006n0064006n0068004d0051006u004d006m006n0064006n006o006m004d0051004r004n004d00690068006n0066006b006800670058006n004d0051003f004r004n004d006l0068006m006j006i006h006m0068004d0051006h006o006f006f004n004d006j006l0068006p006c006i006o006m005q006n0064006n0068004d0051006h006o006f006f006w006w","000000160024002m002m002o002k002m0024":"0016009b006u008w008z008l008o008p008o007p0094006u007i0079007e007c007d0078007b007c007f007g007e007g007a007b0074006u0095008y008w008z008l008o008p008o007p0094006u007i007500790074005w006u008t008x00900092008p00930093008t008z008y0093006u007i008f008h009d","_iiq_fdata":"{\"pcid\":\"8d8307a6-33ff-4c30-b2c1-3bf70366cf33\",\"pcidDate\":1645034787112}","mgMuidn":"m1gqWoDFcW6a","bf001a61-ea58-4c69-33b4-1b01154b26f5":"6758687d7c1f9247508625","_iiq_fdata_1548712036":"{\"callCount\":1,\"failCount\":0,\"noDataCounter\":1,\"cttl\":43200000}","_mgIntentiq":"{\"time\":1645034787118,\"data\":\"e30=\"}","_mgPvid":"17f03b6cd7394629387"},"stack":"Error\n    at get (chrome-extension://pibhebgeoaejhpkdfhfgpmhjnfjefafc/inject.js:61:17)\n    at https://dozubatan.com/400/4414273:1:48414\n    at https://dozubatan.com/400/4414273:1:48824"}
+  # addStorage(script_dic, storage_dic, dataset1)
+  # addStorage(script_dic, storage_dic, dataset2)
+  # addStorage(script_dic, storage_dic, dataset3)
+  # print(script_dic)
+  # print(storage_dic)
+
+main2()
