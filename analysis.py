@@ -319,11 +319,12 @@ def createWebGraph(url):
     with open(r'server/cookie_storage.json') as file:
       for line in file:
         dataset = json.loads(line)
-        if dataset["top_level_url"] == url:
+        if url in dataset["top_level_url"]:
           addStorage(script_dic, storage_dic, dataset) 
     for key in storage_dic:
       addNode(nodes, "Storage@"+key, "Storage", 0 , 0, -3)
     
+    print(nodes)
     # reading big request data line by line
     with open(r'labellings.json') as file:
       for line in file:
@@ -336,9 +337,9 @@ def createWebGraph(url):
             src = addNode(nodes, "Network@"+dataset["http_req"], "Network", 0 , 0, -1)
             
             # check if request is redirected
-            url = getRedirection(dataset["request_id"], dataset["http_req"])
-            if url is not None:
-              tar = addNode(nodes, "Network@"+url, "Network", 0 , 0, -1)
+            rdurl = getRedirection(dataset["request_id"], dataset["http_req"])
+            if rdurl is not None:
+              tar = addNode(nodes, "Network@"+rdurl, "Network", 0 , 0, -1)
               addEdge(edges, src, tar)
             
             # check if resource type is not script then create simple HTML node
@@ -363,16 +364,16 @@ def createWebGraph(url):
               # script -> setter 
               if len(script_dic[dataset["http_req"]][0]) != 0:
                  for item in script_dic[dataset["http_req"]][0]:
-                   addEdge(edges, src, nodes[item][0])
+                   addEdge(edges, src, nodes['Storage@'+item][0])
               # getter -> script
               if len(script_dic[dataset["http_req"]][1]) != 0:
                  for item in script_dic[dataset["http_req"]][1]:
-                   addEdge(edges, nodes[item][0], src)
+                   addEdge(edges, nodes['Storage@'+item][0], src)
 
             # if url has storage info 
             val = IsInfoShared(storage_dic, dataset["http_req"])
             if val is not None:
-              addEdge(edges, nodes[val][0], src)
+              addEdge(edges, nodes['Storage@'+val][0], src)
     
     print(nodes)
     print(edges)
@@ -380,10 +381,10 @@ def createWebGraph(url):
 
 
 def main2():
-  # createWebGraph('TwoLabelledRequestForTesting.json', 'express.co.uk')
+  createWebGraph('arabic.chat')
   # string = {'stack': {'callFrames': [], 'parent': {'callFrames': [{'columnNumber': 181, 'functionName': 'fireTag$$module$dist$src$container$fireTags', 'lineNumber': 96, 'scriptId': '129', 'url': 'https://ap.lijit.com/sync'}, {'columnNumber': 241, 'functionName': 'fireTags$$module$dist$src$container$fireTags', 'lineNumber': 99, 'scriptId': '129', 'url': 'https://ap.lijit.com/sync'}, {'columnNumber': 210, 'functionName': 'dataCallback$$module$dist$src$container$getDataFromServer', 'lineNumber': 102, 'scriptId': '129', 'url': 'https://ap.lijit.com/sync'}, {'columnNumber': 9, 'functionName': '', 'lineNumber': 0, 'scriptId': '154', 'url': 'https://ap.lijit.com/containertag?containerId=18&zoneId=598981&v=2'}], 'description': 'Image'}}, 'type': 'script'}
 
-  print(getInitiator(string['stack']))
+  #print(getInitiator(string['stack']))
   # script_dic = {}
   # storage_dic = {}
   # dataset1 = {"top_level_url":"https://cmovies.online/","function":"cookie_setter","cookie:":"__PPU_BACKCLCK_3714332=true; expires=Wed, 16 Feb 2022 19:06:24 GMT; path=/; domain=cmovies.online","stack":"Error\n    at HTMLDocument.set (chrome-extension://pibhebgeoaejhpkdfhfgpmhjnfjefafc/inject.js:39:17)\n    at e.<computed>.<computed> [as saveSessionCustomKey] (https://lurgaimt.net/tag.min.js:1:43145)\n    at https://lurgaimt.net/tag.min.js:1:47814\n    at _ (https://lurgaimt.net/tag.min.js:1:8934)\n    at https://lurgaimt.net/tag.min.js:1:47689\n    at ln (https://lurgaimt.net/tag.min.js:1:48253)\n    at HTMLScriptElement.g (https://cmovies.online/:1630:60191)"}
