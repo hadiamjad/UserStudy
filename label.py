@@ -10,6 +10,7 @@ import time
 import tldextract
 import traceback
 import xlsxwriter
+import os
 from urllib.parse import urlparse
 from adblockparser import AdblockRules
 
@@ -145,27 +146,25 @@ All of these are boolean(0/1) flags where:
 # return: returns updated dataframe
 def intilization(JSONfile_path):
     # # reading file as dataframe
-    # df = pd.read_json(JSONfile_path, lines=True, chunksize=5)
-    # # extracting unique top_level_url
-    # sites = df['top_level_url'].unique()
-    # with open("logs.txt", "a") as log: log.write(
-    #         "\nSites returned "+ str(len(sites))); log.close()
-    # site = pd.read_csv(r'9.csv')
-    site = pd.DataFrame([['adweek.com'], ['nydailynews.com'], ['hgtv.com']], columns=['website'])
+    site = os.listdir('output')
+    #site = pd.read_csv(r'9.csv')
+    #site = pd.DataFrame([['arabic.chat'], ['cmovies.online']], columns=['website'])
+    count = 0
     # returning dataset
     retDataset = pd.DataFrame()
 
     
 
     # extracting site by site data and labelling
-    for i in site.index:
-        print(site['website'][i])
+    for item in site:
+        item = item.split('.csv')[0]
+        print(item)
         try:
             data = []
             with open(JSONfile_path) as file:
                 for line in file:
                     req = json.loads(line)
-                    if req['top_level_url'] == site['website'][i]:
+                    if req['top_level_url'] == item:
                         data.append(req)
             dataset = pd.DataFrame(data)
             # dataset = df.loc[df['top_level_url'] == site]
@@ -182,13 +181,14 @@ def intilization(JSONfile_path):
             # retDataset.reset_index(inplace=True)
             # df_to_excel(retDataset, r'labellings.xlsx')
             retDataset.to_json(r'labellings.json', orient='records')
+            count +=1
             with open("logs.txt", "a") as log: log.write(
-                "\nCompleted: "+ str(i) +" "+site['website'][i]); log.close()
+                "\nCompleted: "+ str(count) +" "+item); log.close()
         except:
             with open("error.txt", "a") as log: log.write(
                 "\n"+traceback.format_exc()); log.close()
             with open("logs.txt", "a") as log: log.write(
-                "\nCrashed: "+ str(i) +" "+site['website'][i]); log.close()
+                "\nCrashed: "+ str(count) +" "+item); log.close()
 
 
 
